@@ -1,4 +1,4 @@
-import cv2
+import main
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -20,7 +20,7 @@ class HandTrackingAlternative:
         self.load_hand_cascade()
         
         # Contour-based hand detection
-        self.background_subtractor = cv2.createBackgroundSubtractorMOG2()
+        self.background_subtractor = main.createBackgroundSubtractorMOG2()
         
         # Model classification
         self.model = None
@@ -39,38 +39,38 @@ class HandTrackingAlternative:
         """
         try:
             # Thử load hand cascade (có thể cần tải riêng)
-            self.hand_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_hand.xml')
+            self.hand_cascade = main.CascadeClassifier(main.data.haarcascades + 'haarcascade_hand.xml')
         except:
             print("Hand cascade không có sẵn, sử dụng face cascade thay thế")
-            self.hand_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            self.hand_cascade = main.CascadeClassifier(main.data.haarcascades + 'haarcascade_frontalface_default.xml')
     
     def detect_hand_contour(self, frame):
         """
         Detect hand using contour detection
         """
         # Convert to HSV for better skin detection
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        hsv = main.cvtColor(frame, main.COLOR_BGR2HSV)
         
         # Define range for skin color
         lower_skin = np.array([0, 20, 70], dtype=np.uint8)
         upper_skin = np.array([20, 255, 255], dtype=np.uint8)
         
         # Create mask for skin color
-        mask = cv2.inRange(hsv, lower_skin, upper_skin)
+        mask = main.inRange(hsv, lower_skin, upper_skin)
         
         # Apply morphological operations
         kernel = np.ones((5,5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = main.morphologyEx(mask, main.MORPH_OPEN, kernel)
+        mask = main.morphologyEx(mask, main.MORPH_CLOSE, kernel)
         
         # Find contours
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = main.findContours(mask, main.RETR_EXTERNAL, main.CHAIN_APPROX_SIMPLE)
         
         if contours:
             # Get largest contour (assumed to be hand)
-            largest_contour = max(contours, key=cv2.contourArea)
+            largest_contour = max(contours, key=main.contourArea)
             
-            if cv2.contourArea(largest_contour) > 5000:  # Minimum area threshold
+            if main.contourArea(largest_contour) > 5000:  # Minimum area threshold
                 return largest_contour, mask
         
         return None, mask
@@ -85,15 +85,15 @@ class HandTrackingAlternative:
         features = []
         
         # 1. Contour area
-        area = cv2.contourArea(contour)
+        area = main.contourArea(contour)
         features.append(area)
         
         # 2. Perimeter
-        perimeter = cv2.arcLength(contour, True)
+        perimeter = main.arcLength(contour, True)
         features.append(perimeter)
         
         # 3. Aspect ratio
-        x, y, w, h = cv2.boundingRect(contour)
+        x, y, w, h = main.boundingRect(contour)
         aspect_ratio = float(w) / h
         features.append(aspect_ratio)
         
@@ -103,8 +103,8 @@ class HandTrackingAlternative:
         features.append(extent)
         
         # 5. Solidity (ratio of contour area to convex hull area)
-        hull = cv2.convexHull(contour)
-        hull_area = cv2.contourArea(hull)
+        hull = main.convexHull(contour)
+        hull_area = main.contourArea(hull)
         if hull_area > 0:
             solidity = float(area) / hull_area
             features.append(solidity)
@@ -112,9 +112,9 @@ class HandTrackingAlternative:
             features.append(0)
         
         # 6. Convexity defects (fingers detection)
-        hull_indices = cv2.convexHull(contour, returnPoints=False)
+        hull_indices = main.convexHull(contour, returnPoints=False)
         if len(hull_indices) > 3:
-            defects = cv2.convexityDefects(contour, hull_indices)
+            defects = main.convexityDefects(contour, hull_indices)
             if defects is not None:
                 defect_count = len(defects)
                 features.append(defect_count)
@@ -128,13 +128,13 @@ class HandTrackingAlternative:
             features.extend([0, 0])
         
         # 7. Moments-based features
-        moments = cv2.moments(contour)
+        moments = main.moments(contour)
         if moments['m00'] != 0:
             cx = int(moments['m10'] / moments['m00'])
             cy = int(moments['m01'] / moments['m00'])
             
             # Hu moments
-            hu_moments = cv2.HuMoments(moments)
+            hu_moments = main.HuMoments(moments)
             features.extend(hu_moments.flatten())
         else:
             features.extend([0] * 7)
@@ -280,20 +280,20 @@ class HandTrackingAlternative:
         # Panel chính (góc trái)
         panel_width = 380
         panel_height = 280
-        cv2.rectangle(overlay, (10, 10), (panel_width, panel_height), (0, 0, 0), -1)
-        cv2.rectangle(overlay, (10, 10), (panel_width, panel_height), (100, 100, 100), 2)
+        main.rectangle(overlay, (10, 10), (panel_width, panel_height), (0, 0, 0), -1)
+        main.rectangle(overlay, (10, 10), (panel_width, panel_height), (100, 100, 100), 2)
         
         # Blend với frame gốc
         alpha = 0.8
-        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        main.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
         
         # Header
         header_color = (0, 255, 255) if training_mode else (0, 255, 0)
         header_text = "🎯 TRAINING MODE" if training_mode else "👁️ RECOGNITION MODE"
-        cv2.putText(frame, header_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, header_color, 2)
+        main.putText(frame, header_text, (20, 40), main.FONT_HERSHEY_SIMPLEX, 0.8, header_color, 2)
         
         # Đường phân cách
-        cv2.line(frame, (20, 50), (panel_width-10, 50), (100, 100, 100), 1)
+        main.line(frame, (20, 50), (panel_width-10, 50), (100, 100, 100), 1)
         
         if training_mode:
             # Training mode instructions
@@ -309,7 +309,7 @@ class HandTrackingAlternative:
             for i, instruction in enumerate(instructions):
                 color = (255, 255, 255) if i == 0 else (200, 200, 200)
                 font_scale = 0.6 if i == 0 else 0.5
-                cv2.putText(frame, instruction, (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
+                main.putText(frame, instruction, (20, y_pos), main.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
                 y_pos += 25
             
             # Current collection status
@@ -321,21 +321,21 @@ class HandTrackingAlternative:
                 progress_y = 200
                 
                 # Background
-                cv2.rectangle(frame, (progress_x, progress_y), (progress_x + progress_width, progress_y + progress_height), (50, 50, 50), -1)
+                main.rectangle(frame, (progress_x, progress_y), (progress_x + progress_width, progress_y + progress_height), (50, 50, 50), -1)
                 
                 # Progress fill
                 if target_count > 0:
                     fill_width = int((collect_count / target_count) * progress_width)
-                    cv2.rectangle(frame, (progress_x, progress_y), (progress_x + fill_width, progress_y + progress_height), (0, 255, 0), -1)
+                    main.rectangle(frame, (progress_x, progress_y), (progress_x + fill_width, progress_y + progress_height), (0, 255, 0), -1)
                 
                 # Progress text
                 progress_text = f"Collecting '{current_letter}': {collect_count}/{target_count}"
-                cv2.putText(frame, progress_text, (20, 195), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                main.putText(frame, progress_text, (20, 195), main.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
                 
                 # Percentage
                 percentage = int((collect_count / target_count) * 100) if target_count > 0 else 0
-                cv2.putText(frame, f"{percentage}%", (progress_x + progress_width + 10, progress_y + 15), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                main.putText(frame, f"{percentage}%", (progress_x + progress_width + 10, progress_y + 15), 
+                           main.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         else:
             # Recognition mode instructions
             instructions = [
@@ -350,7 +350,7 @@ class HandTrackingAlternative:
             for i, instruction in enumerate(instructions):
                 color = (255, 255, 255) if i == 0 else (200, 200, 200)
                 font_scale = 0.6 if i == 0 else 0.5
-                cv2.putText(frame, instruction, (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
+                main.putText(frame, instruction, (20, y_pos), main.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
                 y_pos += 25
         
         # Hotkeys panel (góc phải trên)
@@ -361,13 +361,13 @@ class HandTrackingAlternative:
         
         # Nền hotkeys
         overlay2 = frame.copy()
-        cv2.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (0, 0, 0), -1)
-        cv2.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (100, 100, 100), 2)
-        cv2.addWeighted(overlay2, 0.8, frame, 0.2, 0, frame)
+        main.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (0, 0, 0), -1)
+        main.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (100, 100, 100), 2)
+        main.addWeighted(overlay2, 0.8, frame, 0.2, 0, frame)
         
         # Hotkeys
-        cv2.putText(frame, "⌨️ HOTKEYS", (hotkey_x + 10, hotkey_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        cv2.line(frame, (hotkey_x + 10, hotkey_y + 30), (hotkey_x + hotkey_panel_width - 10, hotkey_y + 30), (100, 100, 100), 1)
+        main.putText(frame, "⌨️ HOTKEYS", (hotkey_x + 10, hotkey_y + 25), main.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        main.line(frame, (hotkey_x + 10, hotkey_y + 30), (hotkey_x + hotkey_panel_width - 10, hotkey_y + 30), (100, 100, 100), 1)
         
         hotkeys = [
             "T - Toggle Mode",
@@ -378,14 +378,14 @@ class HandTrackingAlternative:
         
         y_pos = hotkey_y + 50
         for hotkey in hotkeys:
-            cv2.putText(frame, hotkey, (hotkey_x + 10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+            main.putText(frame, hotkey, (hotkey_x + 10, y_pos), main.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
             y_pos += 18
         
         # Status bar (dưới cùng)
         status_height = 40
         status_y = height - status_height
-        cv2.rectangle(frame, (0, status_y), (width, height), (0, 0, 0), -1)
-        cv2.rectangle(frame, (0, status_y), (width, status_y + 2), (100, 100, 100), -1)
+        main.rectangle(frame, (0, status_y), (width, height), (0, 0, 0), -1)
+        main.rectangle(frame, (0, status_y), (width, status_y + 2), (100, 100, 100), -1)
         
         # Training data info
         if len(self.training_data) > 0:
@@ -395,12 +395,12 @@ class HandTrackingAlternative:
         else:
             status_text = "📊 No training data yet"
         
-        cv2.putText(frame, status_text, (10, status_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        main.putText(frame, status_text, (10, status_y + 25), main.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         
         # Model status
         model_status = "🤖 Model: Ready" if self.model_trained else "🤖 Model: Not trained"
         model_color = (0, 255, 0) if self.model_trained else (0, 0, 255)
-        cv2.putText(frame, model_status, (width - 200, status_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, model_color, 1)
+        main.putText(frame, model_status, (width - 200, status_y + 25), main.FONT_HERSHEY_SIMPLEX, 0.6, model_color, 1)
     
     def draw_prediction_display(self, frame, prediction, confidence):
         """
@@ -419,8 +419,8 @@ class HandTrackingAlternative:
             overlay = frame.copy()
             
             # Main box
-            cv2.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 50, 0), -1)
-            cv2.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 255, 0), 3)
+            main.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 50, 0), -1)
+            main.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 255, 0), 3)
             
             # Confidence bar background
             conf_bar_width = 200
@@ -428,40 +428,40 @@ class HandTrackingAlternative:
             conf_bar_x = box_x + (box_width - conf_bar_width) // 2
             conf_bar_y = box_y + box_height - 30
             
-            cv2.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + conf_bar_width, conf_bar_y + conf_bar_height), (100, 100, 100), -1)
+            main.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + conf_bar_width, conf_bar_y + conf_bar_height), (100, 100, 100), -1)
             
             # Confidence bar fill
             fill_width = int(confidence * conf_bar_width)
             color = (0, 255, 0) if confidence > 0.8 else (0, 255, 255) if confidence > 0.6 else (0, 0, 255)
-            cv2.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + fill_width, conf_bar_y + conf_bar_height), color, -1)
+            main.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + fill_width, conf_bar_y + conf_bar_height), color, -1)
             
             # Blend
-            cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+            main.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
             
             # Letter text (lớn và đẹp)
             letter_size = 4.0
             letter_thickness = 8
-            text_size = cv2.getTextSize(prediction, cv2.FONT_HERSHEY_SIMPLEX, letter_size, letter_thickness)[0]
+            text_size = main.getTextSize(prediction, main.FONT_HERSHEY_SIMPLEX, letter_size, letter_thickness)[0]
             letter_x = box_x + (box_width - text_size[0]) // 2
             letter_y = box_y + 80
             
             # Shadow effect
-            cv2.putText(frame, prediction, (letter_x + 3, letter_y + 3), cv2.FONT_HERSHEY_SIMPLEX, letter_size, (0, 0, 0), letter_thickness)
-            cv2.putText(frame, prediction, (letter_x, letter_y), cv2.FONT_HERSHEY_SIMPLEX, letter_size, (255, 255, 255), letter_thickness)
+            main.putText(frame, prediction, (letter_x + 3, letter_y + 3), main.FONT_HERSHEY_SIMPLEX, letter_size, (0, 0, 0), letter_thickness)
+            main.putText(frame, prediction, (letter_x, letter_y), main.FONT_HERSHEY_SIMPLEX, letter_size, (255, 255, 255), letter_thickness)
             
             # Confidence text
             conf_text = f"Confidence: {confidence:.1%}"
-            conf_size = cv2.getTextSize(conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+            conf_size = main.getTextSize(conf_text, main.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
             conf_x = box_x + (box_width - conf_size[0]) // 2
-            cv2.putText(frame, conf_text, (conf_x, box_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            main.putText(frame, conf_text, (conf_x, box_y + 30), main.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
     def start_recognition(self):
         """
         Bắt đầu nhận dạng với UI đẹp
         """
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        cap = main.VideoCapture(0)
+        cap.set(main.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(main.CAP_PROP_FRAME_HEIGHT, 720)
         
         training_mode = False
         current_letter = ""
@@ -476,7 +476,7 @@ class HandTrackingAlternative:
             if not ret:
                 break
             
-            frame = cv2.flip(frame, 1)
+            frame = main.flip(frame, 1)
             
             # Detect hand contour
             contour, mask = self.detect_hand_contour(frame)
@@ -485,15 +485,15 @@ class HandTrackingAlternative:
             if contour is not None:
                 # Draw filled contour with transparency
                 overlay = frame.copy()
-                cv2.fillPoly(overlay, [contour], (0, 255, 0))
-                cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
+                main.fillPoly(overlay, [contour], (0, 255, 0))
+                main.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
                 
                 # Draw contour outline
-                cv2.drawContours(frame, [contour], -1, (0, 255, 0), 3)
+                main.drawContours(frame, [contour], -1, (0, 255, 0), 3)
                 
                 # Draw convex hull
-                hull = cv2.convexHull(contour)
-                cv2.drawContours(frame, [hull], -1, (255, 0, 0), 2)
+                hull = main.convexHull(contour)
+                main.drawContours(frame, [hull], -1, (255, 0, 0), 2)
                 
                 # Extract features
                 features = self.extract_hand_features(contour, frame)
@@ -515,17 +515,17 @@ class HandTrackingAlternative:
             self.draw_ui_panel(frame, training_mode, current_letter, collect_count, target_count)
             
             # Show processed mask in corner (smaller)
-            mask_small = cv2.resize(mask, (120, 90))
-            mask_colored = cv2.applyColorMap(mask_small, cv2.COLORMAP_JET)
+            mask_small = main.resize(mask, (120, 90))
+            mask_colored = main.applyColorMap(mask_small, main.COLORMAP_JET)
             frame[frame.shape[0]-100:frame.shape[0]-10, frame.shape[1]-130:frame.shape[1]-10] = mask_colored
             
             # Add corner label for mask
-            cv2.putText(frame, "Hand Mask", (frame.shape[1]-130, frame.shape[0]-105), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            main.putText(frame, "Hand Mask", (frame.shape[1]-130, frame.shape[0]-105), 
+                       main.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
-            cv2.imshow('🤟 Sign Language Recognition', frame)
+            main.imshow('🤟 Sign Language Recognition', frame)
             
-            key = cv2.waitKey(1) & 0xFF
+            key = main.waitKey(1) & 0xFF
             
             if key == ord('q'):
                 print("👋 Goodbye!")
@@ -549,7 +549,7 @@ class HandTrackingAlternative:
                 print(f"📝 Started collecting data for letter '{current_letter}'")
         
         cap.release()
-        cv2.destroyAllWindows()
+        main.destroyAllWindows()
         print("🔚 Application closed")
 
 if __name__ == "__main__":
