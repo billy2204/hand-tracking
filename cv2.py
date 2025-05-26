@@ -268,9 +268,196 @@ class HandTrackingAlternative:
         except:
             print("Không tìm thấy model. Cần training mới.")
     
+    def draw_ui_panel(self, frame, training_mode, current_letter, collect_count, target_count):
+        """
+        Vẽ panel hướng dẫn sử dụng đẹp mắt
+        """
+        height, width = frame.shape[:2]
+        
+        # Tạo panel nền trong suốt
+        overlay = frame.copy()
+        
+        # Panel chính (góc trái)
+        panel_width = 380
+        panel_height = 280
+        cv2.rectangle(overlay, (10, 10), (panel_width, panel_height), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (panel_width, panel_height), (100, 100, 100), 2)
+        
+        # Blend với frame gốc
+        alpha = 0.8
+        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        
+        # Header
+        header_color = (0, 255, 255) if training_mode else (0, 255, 0)
+        header_text = "🎯 TRAINING MODE" if training_mode else "👁️ RECOGNITION MODE"
+        cv2.putText(frame, header_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, header_color, 2)
+        
+        # Đường phân cách
+        cv2.line(frame, (20, 50), (panel_width-10, 50), (100, 100, 100), 1)
+        
+        if training_mode:
+            # Training mode instructions
+            instructions = [
+                "📝 TRAINING INSTRUCTIONS:",
+                "• Press A-Z: Select letter to collect",
+                "• Hold pose: Collect samples",
+                "• Press SPACE: Train model",
+                "• Press T: Exit training mode"
+            ]
+            
+            y_pos = 75
+            for i, instruction in enumerate(instructions):
+                color = (255, 255, 255) if i == 0 else (200, 200, 200)
+                font_scale = 0.6 if i == 0 else 0.5
+                cv2.putText(frame, instruction, (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
+                y_pos += 25
+            
+            # Current collection status
+            if current_letter:
+                # Progress bar
+                progress_width = 200
+                progress_height = 20
+                progress_x = 20
+                progress_y = 200
+                
+                # Background
+                cv2.rectangle(frame, (progress_x, progress_y), (progress_x + progress_width, progress_y + progress_height), (50, 50, 50), -1)
+                
+                # Progress fill
+                if target_count > 0:
+                    fill_width = int((collect_count / target_count) * progress_width)
+                    cv2.rectangle(frame, (progress_x, progress_y), (progress_x + fill_width, progress_y + progress_height), (0, 255, 0), -1)
+                
+                # Progress text
+                progress_text = f"Collecting '{current_letter}': {collect_count}/{target_count}"
+                cv2.putText(frame, progress_text, (20, 195), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                
+                # Percentage
+                percentage = int((collect_count / target_count) * 100) if target_count > 0 else 0
+                cv2.putText(frame, f"{percentage}%", (progress_x + progress_width + 10, progress_y + 15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        else:
+            # Recognition mode instructions
+            instructions = [
+                "👁️ RECOGNITION MODE:",
+                "• Show hand gesture to camera",
+                "• Letter will be detected automatically",
+                "• Green = High confidence",
+                "• Press T: Enter training mode"
+            ]
+            
+            y_pos = 75
+            for i, instruction in enumerate(instructions):
+                color = (255, 255, 255) if i == 0 else (200, 200, 200)
+                font_scale = 0.6 if i == 0 else 0.5
+                cv2.putText(frame, instruction, (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
+                y_pos += 25
+        
+        # Hotkeys panel (góc phải trên)
+        hotkey_panel_width = 200
+        hotkey_panel_height = 120
+        hotkey_x = width - hotkey_panel_width - 10
+        hotkey_y = 10
+        
+        # Nền hotkeys
+        overlay2 = frame.copy()
+        cv2.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (0, 0, 0), -1)
+        cv2.rectangle(overlay2, (hotkey_x, hotkey_y), (hotkey_x + hotkey_panel_width, hotkey_y + hotkey_panel_height), (100, 100, 100), 2)
+        cv2.addWeighted(overlay2, 0.8, frame, 0.2, 0, frame)
+        
+        # Hotkeys
+        cv2.putText(frame, "⌨️ HOTKEYS", (hotkey_x + 10, hotkey_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        cv2.line(frame, (hotkey_x + 10, hotkey_y + 30), (hotkey_x + hotkey_panel_width - 10, hotkey_y + 30), (100, 100, 100), 1)
+        
+        hotkeys = [
+            "T - Toggle Mode",
+            "SPACE - Train",
+            "Q - Quit",
+            "A-Z - Select Letter"
+        ]
+        
+        y_pos = hotkey_y + 50
+        for hotkey in hotkeys:
+            cv2.putText(frame, hotkey, (hotkey_x + 10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+            y_pos += 18
+        
+        # Status bar (dưới cùng)
+        status_height = 40
+        status_y = height - status_height
+        cv2.rectangle(frame, (0, status_y), (width, height), (0, 0, 0), -1)
+        cv2.rectangle(frame, (0, status_y), (width, status_y + 2), (100, 100, 100), -1)
+        
+        # Training data info
+        if len(self.training_data) > 0:
+            unique_letters = len(set(self.training_labels))
+            total_samples = len(self.training_data)
+            status_text = f"📊 Dataset: {unique_letters} letters, {total_samples} samples"
+        else:
+            status_text = "📊 No training data yet"
+        
+        cv2.putText(frame, status_text, (10, status_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        
+        # Model status
+        model_status = "🤖 Model: Ready" if self.model_trained else "🤖 Model: Not trained"
+        model_color = (0, 255, 0) if self.model_trained else (0, 0, 255)
+        cv2.putText(frame, model_status, (width - 200, status_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, model_color, 1)
+    
+    def draw_prediction_display(self, frame, prediction, confidence):
+        """
+        Vẽ kết quả prediction đẹp mắt
+        """
+        if prediction and confidence > 0.6:
+            height, width = frame.shape[:2]
+            
+            # Tạo box hiển thị prediction ở giữa màn hình
+            box_width = 300
+            box_height = 150
+            box_x = (width - box_width) // 2
+            box_y = (height - box_height) // 2
+            
+            # Nền với gradient effect
+            overlay = frame.copy()
+            
+            # Main box
+            cv2.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 50, 0), -1)
+            cv2.rectangle(overlay, (box_x, box_y), (box_x + box_width, box_y + box_height), (0, 255, 0), 3)
+            
+            # Confidence bar background
+            conf_bar_width = 200
+            conf_bar_height = 10
+            conf_bar_x = box_x + (box_width - conf_bar_width) // 2
+            conf_bar_y = box_y + box_height - 30
+            
+            cv2.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + conf_bar_width, conf_bar_y + conf_bar_height), (100, 100, 100), -1)
+            
+            # Confidence bar fill
+            fill_width = int(confidence * conf_bar_width)
+            color = (0, 255, 0) if confidence > 0.8 else (0, 255, 255) if confidence > 0.6 else (0, 0, 255)
+            cv2.rectangle(overlay, (conf_bar_x, conf_bar_y), (conf_bar_x + fill_width, conf_bar_y + conf_bar_height), color, -1)
+            
+            # Blend
+            cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+            
+            # Letter text (lớn và đẹp)
+            letter_size = 4.0
+            letter_thickness = 8
+            text_size = cv2.getTextSize(prediction, cv2.FONT_HERSHEY_SIMPLEX, letter_size, letter_thickness)[0]
+            letter_x = box_x + (box_width - text_size[0]) // 2
+            letter_y = box_y + 80
+            
+            # Shadow effect
+            cv2.putText(frame, prediction, (letter_x + 3, letter_y + 3), cv2.FONT_HERSHEY_SIMPLEX, letter_size, (0, 0, 0), letter_thickness)
+            cv2.putText(frame, prediction, (letter_x, letter_y), cv2.FONT_HERSHEY_SIMPLEX, letter_size, (255, 255, 255), letter_thickness)
+            
+            # Confidence text
+            conf_text = f"Confidence: {confidence:.1%}"
+            conf_size = cv2.getTextSize(conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+            conf_x = box_x + (box_width - conf_size[0]) // 2
+            cv2.putText(frame, conf_text, (conf_x, box_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
     def start_recognition(self):
         """
-        Bắt đầu nhận dạng
+        Bắt đầu nhận dạng với UI đẹp
         """
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -281,11 +468,8 @@ class HandTrackingAlternative:
         collect_count = 0
         target_count = 30
         
-        print("=== HƯỚNG DẪN SỬ DỤNG (Phiên bản tương thích) ===")
-        print("- Nhấn 't' để bắt đầu/kết thúc training mode")
-        print("- Trong training mode, nhấn A-Z để thu thập dữ liệu")
-        print("- Nhấn 'space' để train model")
-        print("- Nhấn 'q' để thoát")
+        print("🚀 Starting Sign Language Recognition...")
+        print("📱 UI controls are displayed on screen")
         
         while True:
             ret, frame = cap.read()
@@ -297,9 +481,19 @@ class HandTrackingAlternative:
             # Detect hand contour
             contour, mask = self.detect_hand_contour(frame)
             
-            # Draw contour if found
+            # Draw enhanced contour
             if contour is not None:
-                cv2.drawContours(frame, [contour], -1, (0, 255, 0), 2)
+                # Draw filled contour with transparency
+                overlay = frame.copy()
+                cv2.fillPoly(overlay, [contour], (0, 255, 0))
+                cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
+                
+                # Draw contour outline
+                cv2.drawContours(frame, [contour], -1, (0, 255, 0), 3)
+                
+                # Draw convex hull
+                hull = cv2.convexHull(contour)
+                cv2.drawContours(frame, [hull], -1, (255, 0, 0), 2)
                 
                 # Extract features
                 features = self.extract_hand_features(contour, frame)
@@ -308,53 +502,55 @@ class HandTrackingAlternative:
                     self.collect_training_data(current_letter, features)
                     collect_count += 1
                     
-                    cv2.putText(frame, f"Collecting '{current_letter}': {collect_count}/{target_count}", 
-                               (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-                    
                     if collect_count >= target_count:
-                        print(f"Đã thu thập đủ {target_count} mẫu cho chữ '{current_letter}'")
+                        print(f"✅ Completed collecting {target_count} samples for '{current_letter}'")
                         current_letter = ""
                         collect_count = 0
                 
                 elif not training_mode and self.model_trained:
                     prediction, confidence = self.predict_letter(features)
-                    
-                    if prediction and confidence > 0.6:
-                        cv2.putText(frame, f"Letter: {prediction}", 
-                                   (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
-                        cv2.putText(frame, f"Confidence: {confidence:.2f}", 
-                                   (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    self.draw_prediction_display(frame, prediction, confidence)
             
-            # Display mode
-            mode_text = "TRAINING" if training_mode else "RECOGNITION"
-            color = (0, 0, 255) if training_mode else (0, 255, 0)
-            cv2.putText(frame, f"Mode: {mode_text}", (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            # Draw main UI panel
+            self.draw_ui_panel(frame, training_mode, current_letter, collect_count, target_count)
             
-            # Show mask in corner
-            mask_small = cv2.resize(mask, (160, 120))
-            frame[10:130, frame.shape[1]-170:frame.shape[1]-10] = cv2.cvtColor(mask_small, cv2.COLOR_GRAY2BGR)
+            # Show processed mask in corner (smaller)
+            mask_small = cv2.resize(mask, (120, 90))
+            mask_colored = cv2.applyColorMap(mask_small, cv2.COLORMAP_JET)
+            frame[frame.shape[0]-100:frame.shape[0]-10, frame.shape[1]-130:frame.shape[1]-10] = mask_colored
             
-            cv2.imshow('Hand Recognition (Compatible Version)', frame)
+            # Add corner label for mask
+            cv2.putText(frame, "Hand Mask", (frame.shape[1]-130, frame.shape[0]-105), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            
+            cv2.imshow('🤟 Sign Language Recognition', frame)
             
             key = cv2.waitKey(1) & 0xFF
             
             if key == ord('q'):
+                print("👋 Goodbye!")
                 break
             elif key == ord('t'):
                 training_mode = not training_mode
                 current_letter = ""
                 collect_count = 0
-            elif key == ord(' ') and training_mode:
-                print("Bắt đầu training model...")
-                self.train_model()
+                mode_name = "TRAINING" if training_mode else "RECOGNITION"
+                print(f"🔄 Switched to {mode_name} mode")
+            elif key == ord(' ') and training_mode and len(self.training_data) > 0:
+                print("🧠 Training model... Please wait...")
+                success = self.train_model()
+                if success:
+                    print("✅ Model trained successfully!")
+                else:
+                    print("❌ Training failed. Need more data.")
             elif training_mode and chr(key).upper() in self.alphabet:
                 current_letter = chr(key).upper()
                 collect_count = 0
-                print(f"Bắt đầu thu thập dữ liệu cho chữ '{current_letter}'")
+                print(f"📝 Started collecting data for letter '{current_letter}'")
         
         cap.release()
         cv2.destroyAllWindows()
+        print("🔚 Application closed")
 
 if __name__ == "__main__":
     tracker = HandTrackingAlternative()
