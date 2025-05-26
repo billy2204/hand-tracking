@@ -1,0 +1,12 @@
+name: hand-tracking
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy
+  - opencv
+  - scikit-learn
+  - pip
+  - pip:
+      - opencv-python
